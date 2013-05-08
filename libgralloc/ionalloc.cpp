@@ -40,11 +40,6 @@
 using gralloc::IonAlloc;
 
 #define ION_DEVICE "/dev/ion"
-#ifdef QCOM_BSP
-#ifndef NEW_ION_API
-#define NEW_ION_API
-#endif
-#endif
 
 int IonAlloc::open_device()
 {
@@ -71,7 +66,7 @@ int IonAlloc::alloc_buffer(alloc_data& data)
 {
     Locker::Autolock _l(mLock);
     int err = 0;
-#ifndef NEW_ION_API
+#ifdef OLD_ION_API
     int ionSyncFd = FD_INIT;
     int iFd = FD_INIT;
 #endif
@@ -82,7 +77,7 @@ int IonAlloc::alloc_buffer(alloc_data& data)
 
     ionAllocData.len = data.size;
     ionAllocData.align = data.align;
-#ifndef NEW_ION_API
+#ifdef OLD_ION_API
     ionAllocData.flags = data.flags;
 #else
     ionAllocData.heap_mask = data.flags & ~ION_SECURE;
@@ -96,7 +91,7 @@ int IonAlloc::alloc_buffer(alloc_data& data)
     err = open_device();
     if (err)
         return err;
-#ifndef NEW_ION_API
+#ifdef OLD_ION_API
     if(data.uncached) {
         // Use the sync FD to alloc and map 93
         // when we need uncached memory 94
@@ -117,7 +112,7 @@ int IonAlloc::alloc_buffer(alloc_data& data)
 #endif
         err = -errno;
         ALOGE("ION_IOC_ALLOC failed with error - %s", strerror(errno));
-#ifndef NEW_ION_API
+#ifdef OLD_ION_API
         if(ionSyncFd >= 0)
             close(ionSyncFd);
         ionSyncFd = FD_INIT;
@@ -127,7 +122,7 @@ int IonAlloc::alloc_buffer(alloc_data& data)
 
     fd_data.handle = ionAllocData.handle;
     handle_data.handle = ionAllocData.handle;
-#ifndef NEW_ION_API
+#ifdef OLD_ION_API
     if(ioctl(iFd, ION_IOC_MAP, &fd_data))
 #else
     if(ioctl(mIonFd, ION_IOC_MAP, &fd_data))
@@ -137,7 +132,7 @@ int IonAlloc::alloc_buffer(alloc_data& data)
         ALOGE("%s: ION_IOC_MAP failed with error - %s",
               __FUNCTION__, strerror(errno));
         ioctl(mIonFd, ION_IOC_FREE, &handle_data);
-#ifndef NEW_ION_API
+#ifdef OLD_ION_API
         if(ionSyncFd >= 0)
             close(ionSyncFd);
         ionSyncFd = FD_INIT;
@@ -153,7 +148,7 @@ int IonAlloc::alloc_buffer(alloc_data& data)
             ALOGE("%s: Failed to map the allocated memory: %s",
                   __FUNCTION__, strerror(errno));
             ioctl(mIonFd, ION_IOC_FREE, &handle_data);
-#ifndef NEW_ION_API
+#ifdef OLD_ION_API
             ionSyncFd = FD_INIT;
 #endif
             return err;
@@ -164,7 +159,7 @@ int IonAlloc::alloc_buffer(alloc_data& data)
                      CACHE_CLEAN_AND_INVALIDATE);
     }
 
-#ifndef NEW_ION_API
+#ifdef OLD_ION_API
     //Close the uncached FD since we no longer need it;
     if(ionSyncFd >= 0)
         close(ionSyncFd);
@@ -258,7 +253,7 @@ int IonAlloc::clean_buffer(void *base, size_t size, int offset, int fd, int op)
     flush_data.offset  = offset;
     flush_data.length  = size;
 
-#ifdef NEW_ION_API
+#ifndef OLD_ION_API
     struct ion_custom_data d;
     switch(op) {
     case CACHE_CLEAN:
@@ -288,4 +283,3 @@ int IonAlloc::clean_buffer(void *base, size_t size, int offset, int fd, int op)
     ioctl(mIonFd, ION_IOC_FREE, &handle_data);
     return 0;
 }
-
